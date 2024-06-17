@@ -9,38 +9,38 @@ contract Market {
     IERC20 public erc20;
     
     struct Order {
-        address contractAddress;
+        address nftContractAddr;
         uint256 tokenId;
         address seller;
         uint256 price;
     }
 
-    mapping(address => Order[]) public contractOrders;
+    mapping(address => Order[]) public ordersOfNftContract;
     mapping(address => mapping(uint256 => Order)) public orderOfTokenId;
     mapping(address => mapping(uint256 => uint256)) public tokenIdToIndex;
 
     event NewOrder(
-        address indexed contractAddress,
+        address indexed nftContractAddr,
         address indexed seller, 
         uint256 indexed tokenId,
         uint256 price
     );
 
     event Deal(
-        address indexed contractAddress,
+        address indexed nftContractAddr,
         address indexed buyer,
         uint256 indexed tokenId,
         uint256 price
     );
 
     event OrderCanceled(
-        address indexed contractAddress,
+        address indexed nftContractAddr,
         address indexed seller, 
         uint256 indexed tokenId
     );
 
     event PriceChanged(
-        address indexed contractAddress,
+        address indexed nftContractAddr,
         address indexed seller, 
         uint256 indexed tokenId,
         uint256 oldPrice,
@@ -55,93 +55,94 @@ contract Market {
         erc20 = IERC20(_erc20Address);
     }
 
-    function listNFT(address _contractAddress, uint256 _tokenId, uint256 _price) public {
-        require(_contractAddress != address(0), "contract address is zero");
 
-        IERC721 nft = IERC721(_contractAddress);
+    function listNFT(address _nftContractAddr, uint256 _tokenId, uint256 _price) public {
+        require(_nftContractAddr != address(0), "contract address is zero");
+
+        IERC721 nft = IERC721(_nftContractAddr);
         address seller = msg.sender;
         require(nft.ownerOf(_tokenId) == seller, "msg sender is not token's owner");
         require(nft.isApprovedForAll(seller, address(this)), "msg sender have not call setApprovedForAll for market");
 
-        contractOrders[_contractAddress].push(Order(_contractAddress, _tokenId, seller, _price));
-        tokenIdToIndex[_contractAddress][_tokenId] = contractOrders[_contractAddress].length - 1;
-        orderOfTokenId[_contractAddress][_tokenId] = Order(_contractAddress, _tokenId, seller, _price);
+        ordersOfNftContract[_nftContractAddr].push(Order(_nftContractAddr, _tokenId, seller, _price));
+        tokenIdToIndex[_nftContractAddr][_tokenId] = ordersOfNftContract[_nftContractAddr].length - 1;
+        orderOfTokenId[_nftContractAddr][_tokenId] = Order(_nftContractAddr, _tokenId, seller, _price);
 
 
-        emit NewOrder(_contractAddress, seller, _tokenId, _price);
+        emit NewOrder(_nftContractAddr, seller, _tokenId, _price);
     }
 
-    function buy(address _contractAddress, uint256 _tokenId) public {
-        require(_contractAddress != address(0), "contract address is zero");
+    function buy(address _nftContractAddr, uint256 _tokenId) public {
+        require(_nftContractAddr != address(0), "contract address is zero");
 
-        IERC721 nft = IERC721(_contractAddress);
-        Order memory order = orderOfTokenId[_contractAddress][_tokenId];
+        IERC721 nft = IERC721(_nftContractAddr);
+        Order memory order = orderOfTokenId[_nftContractAddr][_tokenId];
         require(order.seller != address(0), "token has not listed");
         require(order.seller != msg.sender, "buyer is seller");
         
         require(erc20.transferFrom(msg.sender, order.seller, order.price), "transfer erc20 fail");
         nft.safeTransferFrom(order.seller, msg.sender, _tokenId);
 
-        _removeOrder(_contractAddress, _tokenId);
+        _removeOrder(_nftContractAddr, _tokenId);
 
-        emit Deal(_contractAddress, msg.sender, _tokenId, order.price);
+        emit Deal(_nftContractAddr, msg.sender, _tokenId, order.price);
     }
 
-    function unlistNFT(address _contractAddress, uint256 _tokenId) public {
-        require(_contractAddress != address(0), "contract address is zero");
+
+    function unlistNFT(address _nftContractAddr, uint256 _tokenId) public {
+        require(_nftContractAddr != address(0), "contract address is zero");
         
-        address seller = orderOfTokenId[_contractAddress][_tokenId].seller;
+        address seller = orderOfTokenId[_nftContractAddr][_tokenId].seller;
         require(seller != address(0), "token has not listed");
         require(msg.sender == seller, "msg sender is not seller");
 
-        _removeOrder(_contractAddress, _tokenId);
+        _removeOrder(_nftContractAddr, _tokenId);
 
-        emit OrderCanceled(_contractAddress, seller, _tokenId);
+        emit OrderCanceled(_nftContractAddr, seller, _tokenId);
     }
 
-    function changePrice(address _contractAddress, uint256 _tokenId, uint256 _price) public {
-        require(_contractAddress != address(0), "contract address is zero");
-        address seller = orderOfTokenId[_contractAddress][_tokenId].seller;
+
+    function changePrice(address _nftContractAddr, uint256 _tokenId, uint256 _price) public {
+        require(_nftContractAddr != address(0), "contract address is zero");
+        address seller = orderOfTokenId[_nftContractAddr][_tokenId].seller;
         require(seller != address(0), "token has not listed");
         require(msg.sender == seller, "msg sender is not seller");
 
-        uint256 oldPrice = orderOfTokenId[_contractAddress][_tokenId].price;
-        orderOfTokenId[_contractAddress][_tokenId].price = _price;
+        uint256 oldPrice = orderOfTokenId[_nftContractAddr][_tokenId].price;
+        orderOfTokenId[_nftContractAddr][_tokenId].price = _price;
 
-        uint256 index = tokenIdToIndex[_contractAddress][_tokenId];
-        contractOrders[_contractAddress][index].price = _price;
+        uint256 index = tokenIdToIndex[_nftContractAddr][_tokenId];
+        ordersOfNftContract[_nftContractAddr][index].price = _price;
         
-        emit PriceChanged(_contractAddress, seller, _tokenId, oldPrice, _price);
+        emit PriceChanged(_nftContractAddr, seller, _tokenId, oldPrice, _price);
+    }
+
+
+    function isListed(address _nftContractAddr, uint256 _tokenId) external view returns (bool) {
+        return orderOfTokenId[_nftContractAddr][_tokenId].seller != address(0);
     }
     
 
-    // function getAllNFTs(address _contractAddress) external view returns (Order[] memory) {
-    // }
-
-
-    // function getOrderByTokenId(address _contractAddress, uint256 _tokenId) external view returns (Order memory) {
-    // }
-
-
-    // function getMyNFTs() external view returns (uint256[] memory){
-    // }
-
-
-    function getOrderLength(address _contractAddress) external view returns(uint256) {
-        return contractOrders[_contractAddress].length;
+    function getAllOrders(address _nftContractAddr) external view returns (Order[] memory) {
+        return ordersOfNftContract[_nftContractAddr];
     }
 
-    function _removeOrder(address _contractAddress, uint256 _tokenId) internal {
-        uint256 index = tokenIdToIndex[_contractAddress][_tokenId];
-        uint256 lastIndex = contractOrders[_contractAddress].length - 1;
+
+    function getOrderLength(address _nftContractAddr) external view returns(uint256) {
+        return ordersOfNftContract[_nftContractAddr].length;
+    }
+
+    function _removeOrder(address _nftContractAddr, uint256 _tokenId) internal {
+        uint256 index = tokenIdToIndex[_nftContractAddr][_tokenId];
+        uint256 lastIndex = ordersOfNftContract[_nftContractAddr].length - 1;
         if(index != lastIndex) {
-            Order storage lastOrder = contractOrders[_contractAddress][lastIndex];
-            contractOrders[_contractAddress][index] = lastOrder;
-            tokenIdToIndex[_contractAddress][lastOrder.tokenId] = index;
+            Order storage lastOrder = ordersOfNftContract[_nftContractAddr][lastIndex];
+            ordersOfNftContract[_nftContractAddr][index] = lastOrder;
+            tokenIdToIndex[_nftContractAddr][lastOrder.tokenId] = index;
         }
-        contractOrders[_contractAddress].pop();
-        delete orderOfTokenId[_contractAddress][_tokenId];
-        delete tokenIdToIndex[_contractAddress][_tokenId];
+        ordersOfNftContract[_nftContractAddr].pop();
+        delete orderOfTokenId[_nftContractAddr][_tokenId];
+        delete tokenIdToIndex[_nftContractAddr][_tokenId];
     }
 
 
