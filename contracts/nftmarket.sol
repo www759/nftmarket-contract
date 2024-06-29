@@ -3,8 +3,9 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC721.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Market {
+contract Market is ReentrancyGuard{
     address public marketOwner;
     IERC20 public erc20;
     
@@ -13,6 +14,7 @@ contract Market {
         uint256 tokenId;
         address seller;
         uint256 price;
+        uint256 timestamp;
     }
 
     mapping(address => Order[]) public ordersOfNftContract;
@@ -64,15 +66,16 @@ contract Market {
         require(nft.ownerOf(_tokenId) == seller, "msg sender is not token's owner");
         require(nft.isApprovedForAll(seller, address(this)), "msg sender have not call setApprovedForAll for market");
 
-        ordersOfNftContract[_nftContractAddr].push(Order(_nftContractAddr, _tokenId, seller, _price));
+        uint256 timestamp = block.timestamp;
+        ordersOfNftContract[_nftContractAddr].push(Order(_nftContractAddr, _tokenId, seller, _price, timestamp));
         tokenIdToIndex[_nftContractAddr][_tokenId] = ordersOfNftContract[_nftContractAddr].length - 1;
-        orderOfTokenId[_nftContractAddr][_tokenId] = Order(_nftContractAddr, _tokenId, seller, _price);
+        orderOfTokenId[_nftContractAddr][_tokenId] = Order(_nftContractAddr, _tokenId, seller, _price, timestamp);
 
 
         emit NewOrder(_nftContractAddr, seller, _tokenId, _price);
     }
 
-    function buy(address _nftContractAddr, uint256 _tokenId) public {
+    function buy(address _nftContractAddr, uint256 _tokenId) public nonReentrant {
         require(_nftContractAddr != address(0), "contract address is zero");
 
         IERC721 nft = IERC721(_nftContractAddr);
@@ -89,7 +92,7 @@ contract Market {
     }
 
 
-    function unlistNFT(address _nftContractAddr, uint256 _tokenId) public {
+    function unlistNFT(address _nftContractAddr, uint256 _tokenId) public nonReentrant {
         require(_nftContractAddr != address(0), "contract address is zero");
         
         address seller = orderOfTokenId[_nftContractAddr][_tokenId].seller;
@@ -102,7 +105,7 @@ contract Market {
     }
 
 
-    function changePrice(address _nftContractAddr, uint256 _tokenId, uint256 _price) public {
+    function changePrice(address _nftContractAddr, uint256 _tokenId, uint256 _price) public nonReentrant {
         require(_nftContractAddr != address(0), "contract address is zero");
         address seller = orderOfTokenId[_nftContractAddr][_tokenId].seller;
         require(seller != address(0), "token has not listed");
